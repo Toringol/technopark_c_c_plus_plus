@@ -23,14 +23,7 @@
 
 #define BUFFER_SIZE 1024
 
-#define FREE_MEMORY free(P); \
-					free(Q); \
-					free(S); \
-
-static const char *k_base_high_symbols = "0123456789ABCDEFGHIJKLMNOPQRASUVWXYZ";
-static const char *k_base_low_symbols = "0123456789abcdefghijklmnopqrasuvwxyz";
-
-int flag = 0;
+int flag_of_checking_register_of_symbols = 0;
 char S1[BUFFER_SIZE] = "";
 
 size_t power(size_t number, size_t degree);
@@ -38,6 +31,7 @@ char* reverse(char* line);
 int character_to_integer(char temp_character);
 
 int check_input_mistakes(size_t P, size_t Q, const char* S);
+void free_memory(size_t *P, size_t *Q, char* S);
 size_t any_num_sys_to_dec(const char* S, size_t P);
 void dec_to_target_num_sys(size_t number, size_t Q);
 char* any_num_sys_to_any(size_t P, size_t Q, const char* S);
@@ -49,20 +43,20 @@ int main() {
 	size_t *Q = (size_t *)malloc(sizeof(size_t));
 	char *S = (char *)malloc(sizeof(char) * BUFFER_SIZE);
 
-	if(scanf("%zd%zd%1024s", P, Q, S) != 3) {
-		FREE_MEMORY
+	if (scanf("%zd%zd%1024s", P, Q, S) != 3 || (*P == 0 || *Q == 0 || *S == 0)) {
+		free_memory(P, Q, S);
 		printf("[error]");
 		return 0;
 	}
 
 	if (check_input_mistakes(*P, *Q, S) == -1) {
-		FREE_MEMORY
+		free_memory(P, Q, S);
 		return 0;
 	}
 
 	printf("%s", any_num_sys_to_any(*P, *Q, S));
 
-	FREE_MEMORY
+	free_memory(P, Q, S);
 
 	return 0;
 }
@@ -84,11 +78,11 @@ int character_to_integer(char temp_character) {
 		return (temp_character - 48);
 	}
 	if (temp_character >= 'A' && temp_character <= 'Z') {
-		flag = 0;
+		flag_of_checking_register_of_symbols = 0;
 		return (temp_character - 55);
 	}
 	if (temp_character >= 'a' && temp_character <= 'z') {
-		flag = 1;
+		flag_of_checking_register_of_symbols = 1;
 		return (temp_character - 87);
 	}
 	else {
@@ -123,8 +117,10 @@ size_t any_num_sys_to_dec(const char* S, size_t P) {
 }
 
 void dec_to_target_num_sys(size_t number, size_t Q) {
+	static const char *k_base_high_symbols = "0123456789ABCDEFGHIJKLMNOPQRASUVWXYZ";
+	static const char *k_base_low_symbols = "0123456789abcdefghijklmnopqrasuvwxyz";
 	size_t i = 0;
-	if (flag == 0) {
+	if (flag_of_checking_register_of_symbols == 0) {
 		do {
 			if ((number % Q) >= 10) {
 				S1[i++] = k_base_high_symbols[number % Q];
@@ -160,8 +156,14 @@ char* any_num_sys_to_any(size_t P, size_t Q, const char* S) {
 	return S1;
 }
 
+void free_memory(size_t *P, size_t *Q, char* S) {
+	free(P);
+	free(Q);
+	free(S);
+}
+
 int check_input_mistakes(size_t P, size_t Q, const char* S) {
-	if (P == 0 || Q == 0 || S == 0 || S1 == 0) {
+	if (P == 0 || Q == 0 || S == 0) {
 		printf("[error]");
 		return -1;
 	}
