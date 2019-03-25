@@ -40,19 +40,11 @@ typedef struct {
 	int lastdigit;
 } bignum;
 
-bignum stack_of_operands[STACK_SIZE];
-int stack_of_operations[STACK_SIZE];
+void push_in_stack_of_operands(bignum value, bignum* stack_of_operands, int* stack_pointer_of_operands, int* stack_size);
+void push_in_stack_of_operations(int value, int* stack_of_operations, int* stack_pointer_of_operands, int* stack_size);
 
-int stack_pointer_of_operands = 0;
-int stack_pointer_of_operations = 0;
-
-int line_i = 0;
-
-void push_in_stack_of_operands(bignum value);
-void push_in_stack_of_operations(int value);
-
-bignum pop_from_stack_of_operands(void);
-int pop_from_stack_of_operations(void);
+bignum pop_from_stack_of_operands(bignum* stack_of_operands, int* stack_pointer_of_operands);
+int pop_from_stack_of_operations(int* stack_of_operations, int* stack_pointer_of_operands);
 
 void print_bignum(bignum *n);
 void int_to_bignum(int s, bignum *n);
@@ -67,41 +59,74 @@ void digit_shift(bignum *n, int d);
 void multiply_bignum(bignum *a, bignum *b, bignum *c);
 void divide_bignum(bignum *a, bignum *b, bignum *c);
 
+char* get_string();
+void free_memory(char* input_string, bignum* stack_of_operands, int* stack_of_operations);
 int check_input_data(const char* input_string);
 int getop(char* expression, char* s);
-int check_last_operation();
-void make_operation();
-bignum calculate(char* expression);
+int check_last_operation(int* stack_of_operations, int* stack_pointer_of_operations, int* stack_size);
+void make_operation(bignum* stack_of_operands, int* stack_of_operations,
+					int* stack_pointer_of_operands, int* stack_pointer_of_operations, int* stack_size);
+bignum calculate(char* expression, bignum* stack_of_operands, int* stack_pointer_of_operands,
+				 int* stack_of_operations, int* stack_pointer_of_operations, int* stack_size);
 
 int main() {
 
-	char* input_string = (char *)malloc(sizeof(char) * BUFFER_SIZE);
+	char* input_string = get_string();
 
-	if (input_string == 0) {
-		free(input_string);
-		printf("[error]");
-		return 0;
-	}
+	bignum* stack_of_operands = (bignum *)malloc(sizeof(bignum) * STACK_SIZE);
+	int* stack_of_operations = (int *)malloc(sizeof(int) * STACK_SIZE);
 
-	if (scanf("%1024s", input_string) != 1) {
-		free(input_string);
+	int stack_pointer_of_operands = 0;
+	int stack_pointer_of_operations = 0;
+	int base_stack_size = STACK_SIZE;
+
+	if (!input_string || !stack_of_operands || !stack_of_operations) {
+		free_memory(input_string, stack_of_operands, stack_of_operations);
 		printf("[error]");
 		return 0;
 	}
 
 	if (check_input_data(input_string) == 0) {
-		free(input_string);
+		free_memory(input_string, stack_of_operands, stack_of_operations);
 		printf("[error]");
 		return 0;
 	}
 
-	bignum result = calculate(input_string);
+	bignum result = calculate(input_string, stack_of_operands, &stack_pointer_of_operands,
+							  stack_of_operations, &stack_pointer_of_operations, &base_stack_size);
 	print_bignum(&result);
 
-	free(input_string);
+	free_memory(input_string, stack_of_operands, stack_of_operations);
 	return 0;
 }
 
+char* get_string() {
+	char str[BUFFER_SIZE];
+	if (!fgets(str, sizeof str, stdin)) {
+		return NULL;
+	}
+	size_t str_len = strlen(str);
+	size_t last_ch = str_len - 1;
+	if (str[last_ch] == '\n') {
+		str[last_ch] = '\0';
+	}
+	else if (str[last_ch] != '\n') {
+		str_len++;
+	}
+	if (str[0] == '\0') {
+		return NULL;
+	}
+	else if (str_len == BUFFER_SIZE) {
+		return NULL;
+	}
+
+	char *result = (char *)malloc(str_len * sizeof(char));
+	if (!result) {
+		return NULL;
+	}
+	strncpy(result, str, str_len);
+	return result;
+};
 
 int check_input_data(const char* input_string) {
 	int counter_of_brackets = 0;
@@ -144,6 +169,7 @@ int check_input_data(const char* input_string) {
 }
 
 int getop(char* expression, char* s) {
+	static int line_i;
 	int i = 0;
 	static int c;
 	while ((s[0] = c = expression[line_i++]) == ' ' || c == '\t');
@@ -158,48 +184,50 @@ int getop(char* expression, char* s) {
 	return NUMBER;
 }
 
-int check_last_operation() {
-	int last_element = pop_from_stack_of_operations();
-	push_in_stack_of_operations(last_element);
+int check_last_operation(int* stack_of_operations, int* stack_pointer_of_operations, int* stack_size) {
+	int last_element = pop_from_stack_of_operations(stack_of_operations, stack_pointer_of_operations);
+	push_in_stack_of_operations(last_element, stack_of_operations, stack_pointer_of_operations, stack_size);
 	return last_element;
 }
 
-void make_operation() {
+void make_operation(bignum* stack_of_operands, int* stack_of_operations,
+					int* stack_pointer_of_operands, int* stack_pointer_of_operations, int* stack_size) {
 	bignum result;
 	initialize_bignum(&result);
 	bignum operand1;
 	bignum operand2;
 	initialize_bignum(&operand1);
 	initialize_bignum(&operand2);
-	if (check_last_operation() == '+') {
-		operand1 = pop_from_stack_of_operands();
-		operand2 = pop_from_stack_of_operands();
+	if (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '+') {
+		operand1 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
+		operand2 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
 		add_bignum(&operand1, &operand2, &result);
-		push_in_stack_of_operands(result);
+		push_in_stack_of_operands(result, stack_of_operands, stack_pointer_of_operands, stack_size);
 	}
-	if (check_last_operation() == '-') {
-		operand2 = pop_from_stack_of_operands();
-		operand1 = pop_from_stack_of_operands();
+	if (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '-') {
+		operand2 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
+		operand1 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
 		subtract_bignum(&operand1, &operand2, &result);
-		push_in_stack_of_operands(result);
+		push_in_stack_of_operands(result, stack_of_operands, stack_pointer_of_operands, stack_size);
 	}
-	if (check_last_operation() == '*') {
-		operand1 = pop_from_stack_of_operands();
-		operand2 = pop_from_stack_of_operands();
+	if (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '*') {
+		operand1 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
+		operand2 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
 		multiply_bignum(&operand1, &operand2, &result);
-		push_in_stack_of_operands(result);
+		push_in_stack_of_operands(result, stack_of_operands, stack_pointer_of_operands, stack_size);
 	}
-	if (check_last_operation() == '/') {
-		operand2 = pop_from_stack_of_operands();
-		operand1 = pop_from_stack_of_operands();
+	if (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '/') {
+		operand2 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
+		operand1 = pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
 		divide_bignum(&operand1, &operand2, &result);
-		push_in_stack_of_operands(result);
+		push_in_stack_of_operands(result, stack_of_operands, stack_pointer_of_operands, stack_size);
 	}
-	pop_from_stack_of_operations();
+	pop_from_stack_of_operations(stack_of_operations, stack_pointer_of_operations);
 }
 
 
-bignum calculate(char* expression) {
+bignum calculate(char* expression, bignum* stack_of_operands, int* stack_pointer_of_operands,
+				 int* stack_of_operations, int* stack_pointer_of_operations, int* stack_size) {
 	bignum space;
 	initialize_bignum(&space);
 	int type = 0;
@@ -209,51 +237,53 @@ bignum calculate(char* expression) {
 		while ((type = getop(expression, s)) != '\n') {
 			switch (type) {
 			case NUMBER:
-				push_in_stack_of_operands(string_to_bignum(s, &result));
+				push_in_stack_of_operands(string_to_bignum(s, &result), stack_of_operands, stack_pointer_of_operands, stack_size);
 				break;
 			case ENDOFTHEFILE:
-				while (stack_pointer_of_operations != 0) {
-					make_operation();
+				while (*stack_pointer_of_operations != 0) {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				return pop_from_stack_of_operands();
+				return pop_from_stack_of_operands(stack_of_operands, stack_pointer_of_operands);
 			case '+':
-				while (stack_pointer_of_operations != 0 && (check_last_operation() == '+'
-					|| check_last_operation() == '-' || check_last_operation() == '*'
-					|| check_last_operation() == '/')) {
-					make_operation();
+				while (*stack_pointer_of_operations != 0 && (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '+'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '-' || 
+					check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '*'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '/')) {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				push_in_stack_of_operations('+');
+				push_in_stack_of_operations('+', stack_of_operations, stack_pointer_of_operations, stack_size);
 				break;
 			case '-':
-				while (stack_pointer_of_operations != 0 && (check_last_operation() == '+'
-					|| check_last_operation() == '-' || check_last_operation() == '*'
-					|| check_last_operation() == '/')) {
-					make_operation();
+				while (*stack_pointer_of_operations != 0 && (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '+'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '-' 
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '*'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '/')) {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				push_in_stack_of_operations('-');
+				push_in_stack_of_operations('-', stack_of_operations, stack_pointer_of_operations, stack_size);
 				break;
 			case '/':
-				while (stack_pointer_of_operations != 0 && (check_last_operation() == '*'
-					|| check_last_operation() == '/')) {
-					make_operation();
+				while (*stack_pointer_of_operations != 0 && (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '*'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '/')) {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				push_in_stack_of_operations('/');
+				push_in_stack_of_operations('/', stack_of_operations, stack_pointer_of_operations, stack_size);
 				break;
 			case '*':
-				while (stack_pointer_of_operations != 0 && (check_last_operation() == '*'
-					|| check_last_operation() == '/')) {
-					make_operation();
+				while (*stack_pointer_of_operations != 0 && (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '*'
+					|| check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) == '/')) {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				push_in_stack_of_operations('*');
+				push_in_stack_of_operations('*', stack_of_operations, stack_pointer_of_operations, stack_size);
 				break;
 			case '(':
-				push_in_stack_of_operations('(');
+				push_in_stack_of_operations('(', stack_of_operations, stack_pointer_of_operations, stack_size);
 				break;
 			case ')':
-				while (check_last_operation() != '(') {
-					make_operation();
+				while (check_last_operation(stack_of_operations, stack_pointer_of_operations, stack_size) != '(') {
+					make_operation(stack_of_operands, stack_of_operations, stack_pointer_of_operands, stack_pointer_of_operations, stack_size);
 				}
-				pop_from_stack_of_operations();
+				pop_from_stack_of_operations(stack_of_operations, stack_pointer_of_operations);
 				break;
 			default:
 				break;
@@ -263,39 +293,52 @@ bignum calculate(char* expression) {
 	return space;
 }
 
-void push_in_stack_of_operands(bignum value) {
-	if (stack_pointer_of_operands < STACK_SIZE)
-		stack_of_operands[stack_pointer_of_operands++] = value;
+void push_in_stack_of_operands(bignum value, bignum* stack_of_operands, int* stack_pointer_of_operands, int* stack_size) {
+	if (*stack_pointer_of_operands < *stack_size)
+		stack_of_operands[(*stack_pointer_of_operands)++] = value;
+	else {
+		*stack_size *= 2;
+		stack_of_operands = (bignum *)realloc(stack_of_operands, *stack_size * sizeof(bignum));
+		stack_of_operands[(*stack_pointer_of_operands)++] = value;
+	}
 }
 
-bignum pop_from_stack_of_operands(void) {
+bignum pop_from_stack_of_operands(bignum* stack_of_operands, int* stack_pointer_of_operands) {
 	bignum space;
 	initialize_bignum(&space);
 	if (stack_pointer_of_operands > 0)
-		return stack_of_operands[--stack_pointer_of_operands];
+		return stack_of_operands[--(*stack_pointer_of_operands)];
 	else {
 		return space;
 	}
 }
 
-void push_in_stack_of_operations(int value) {
-	if (stack_pointer_of_operations < STACK_SIZE)
-		stack_of_operations[stack_pointer_of_operations++] = value;
-	else
-		printf("[error]");
+void push_in_stack_of_operations(int value, int* stack_of_operations, int* stack_pointer_of_operations, int* stack_size) {
+	if (*stack_pointer_of_operations < *stack_size)
+		stack_of_operations[(*stack_pointer_of_operations)++] = value;
+	else {
+		*stack_size *= 2;
+		stack_of_operations = (int *)realloc(stack_of_operations, *stack_size * sizeof(int));
+		stack_of_operations[(*stack_pointer_of_operations)++] = value;
+	}	
 }
 
-int pop_from_stack_of_operations(void) {
-	if (stack_pointer_of_operations > 0)
-		return stack_of_operations[--stack_pointer_of_operations];
+int pop_from_stack_of_operations(int* stack_of_operations, int* stack_pointer_of_operations) {
+	if (*stack_pointer_of_operations > 0)
+		return stack_of_operations[--(*stack_pointer_of_operations)];
 	else {
 		printf("[error]");
 		return 0;
 	}
 }
 
-void print_bignum(bignum *n)
-{
+void free_memory(char* input_string, bignum* stack_of_operands, int* stack_of_operations) {
+	free(input_string);
+	free(stack_of_operands);
+	free(stack_of_operations);
+}
+
+void print_bignum(bignum *n) {
 	int i;
 
 	if (n->signbit == MINUS) printf("-");
@@ -305,8 +348,7 @@ void print_bignum(bignum *n)
 	printf("\n");
 }
 
-void int_to_bignum(int s, bignum *n)
-{
+void int_to_bignum(int s, bignum *n) {
 	int i;
 	int t;
 
@@ -370,19 +412,16 @@ bignum string_to_bignum(char* string, bignum *result) {
 	return *result;
 }
 
-void initialize_bignum(bignum *n)
-{
+void initialize_bignum(bignum *n) {
 	int_to_bignum(0, n);
 }
 
-int max(int a, int b)
-{
+int max(int a, int b) {
 	if (a > b) return(a); else return(b);
 }
 
 
-void zero_justify(bignum *n)
-{
+void zero_justify(bignum *n) {
 	while ((n->lastdigit > 0) && (n->digits[n->lastdigit] == 0))
 		n->lastdigit--;
 
@@ -390,8 +429,7 @@ void zero_justify(bignum *n)
 		n->signbit = PLUS;
 }
 
-void subtract_bignum(bignum *a, bignum *b, bignum *c)
-{
+void subtract_bignum(bignum *a, bignum *b, bignum *c) {
 	int borrow;
 	int v;
 	int i;
@@ -429,8 +467,7 @@ void subtract_bignum(bignum *a, bignum *b, bignum *c)
 	zero_justify(c);
 }
 
-void add_bignum(bignum *a, bignum *b, bignum *c)
-{
+void add_bignum(bignum *a, bignum *b, bignum *c) {
 	int carry;
 	int i;
 
@@ -462,8 +499,7 @@ void add_bignum(bignum *a, bignum *b, bignum *c)
 	zero_justify(c);
 }
 
-int compare_bignum(bignum *a, bignum *b)
-{
+int compare_bignum(bignum *a, bignum *b) {
 	int i;
 
 	if ((a->signbit == MINUS) && (b->signbit == PLUS)) return(PLUS);
@@ -480,8 +516,7 @@ int compare_bignum(bignum *a, bignum *b)
 	return(0);
 }
 
-void digit_shift(bignum *n, int d)
-{
+void digit_shift(bignum *n, int d) {
 	int i;
 
 	if ((n->lastdigit == 0) && (n->digits[0] == 0)) return;
@@ -494,8 +529,7 @@ void digit_shift(bignum *n, int d)
 	n->lastdigit = n->lastdigit + d;
 }
 
-void multiply_bignum(bignum *a, bignum *b, bignum *c)
-{
+void multiply_bignum(bignum *a, bignum *b, bignum *c) {
 	bignum row;
 	bignum tmp;
 	int i, j;
@@ -518,8 +552,7 @@ void multiply_bignum(bignum *a, bignum *b, bignum *c)
 }
 
 
-void divide_bignum(bignum *a, bignum *b, bignum *c)
-{
+void divide_bignum(bignum *a, bignum *b, bignum *c) {
 	bignum row;
 	bignum tmp;
 	int asign, bsign;
